@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .diff-changed {
+    @apply bg-amber-100 text-amber-900;
+  }
+
+  .diff-missing {
+    @apply bg-red-100 text-red-900;
+  }
+
+  .diff-added {
+    @apply bg-emerald-100 text-emerald-900;
+  }
+}
