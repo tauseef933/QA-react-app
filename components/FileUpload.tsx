@@ -21,24 +21,51 @@ function parseWorkbook(buffer: ArrayBuffer): {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const data = XLSX.utils.sheet_to_json<SheetRow>(sheet, { header: 1 });
 
-  if (data.length === 0) {
-    return { rows: [], columns: [] };
+  if (data.length === 0) return { rows: [], columns: [] };
+
+  // Build deduplicated column names — duplicate headers get a _2, _3 suffix
+  // so data from every column is preserved.
+  const rawHeaders = data[0].map((h) => String(h ?? '').trim());
+  const colNames: string[] = [];
+  const seen: Record<string, number> = {};
+
+  for (const h of rawHeaders) {
+    if (!h) {
+      colNames.push(''); // placeholder for index alignment; skipped in row building
+      continue;
+    }
+    if (h in seen) {
+      seen[h]++;
+      colNames.push(`${h}_${seen[h]}`);
+    } else {
+      seen[h] = 1;
+      colNames.push(h);
+    }
   }
 
-  const columns = data[0].map((header) => String(header ?? '').trim());
+  // Only named, non-empty column labels are exposed outside
+  const namedColumns = colNames.filter(Boolean);
+
   const rows: Record<string, string>[] = [];
 
   for (let i = 1; i < data.length; i++) {
     const rowData = data[i];
     const record: Record<string, string> = {};
-    for (let j = 0; j < columns.length; j++) {
-      const value = rowData[j];
-      record[columns[j]] = value != null ? String(value) : '';
+    let hasData = false;
+
+    for (let j = 0; j < colNames.length; j++) {
+      const colName = colNames[j];
+      if (!colName) continue; // skip placeholder slots for empty headers
+      const raw = rowData[j];
+      const val = raw != null ? String(raw).replace(/[\u00A0\uFEFF\u200B]/g, ' ').trim() : '';
+      record[colName] = val;
+      if (val) hasData = true;
     }
-    rows.push(record);
+
+    if (hasData) rows.push(record); // skip fully-empty rows
   }
 
-  return { rows, columns };
+  return { rows, columns: namedColumns };
 }
 
 export default function FileUpload({
@@ -57,7 +84,8 @@ export default function FileUpload({
 
   const processFile = useCallback(
     async (file: File) => {
-      if (!file.name.toLowerCase().endsWith('.xlsx')) return;
+      const name = file.name.toLowerCase();
+      if (!name.endsWith('.xlsx') && !name.endsWith('.xls')) return;
 
       setIsParsing(true);
       setSelectedFileName(file.name);
@@ -116,7 +144,7 @@ export default function FileUpload({
         <input
           ref={inputRef}
           type="file"
-          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
           onChange={handleFileChange}
           className="hidden"
         />
@@ -151,7 +179,7 @@ export default function FileUpload({
               </svg>
             </div>
             <p className="text-sm font-medium text-gray-900">Drop .xlsx file here or click to browse</p>
-            <p className="text-xs text-gray-500">Excel (.xlsx) only</p>
+            <p className="text-xs text-gray-500">Excel (.xlsx or .xls)</p>
           </div>
         )}
       </div>

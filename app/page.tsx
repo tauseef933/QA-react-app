@@ -12,6 +12,8 @@ export default function Home() {
   const [aifyFileName, setAifyFileName] = useState('');
   const [aifyRowCount, setAifyRowCount] = useState(0);
 
+  const [aifyColumns, setAifyColumns] = useState<string[]>([]);
+
   const [ambraRows, setAmbraRows] = useState<Record<string, string>[]>([]);
   const [ambraColumns, setAmbraColumns] = useState<string[]>([]);
   const [ambraFileName, setAmbraFileName] = useState('');
@@ -28,7 +30,9 @@ export default function Home() {
   const skuColumnName = useMemo(() => detectSkuColumn(ambraColumns), [ambraColumns]);
 
   const comparisonColumns = useMemo(
-    () => ambraColumns.filter((c) => c !== skuColumnName),
+    // Remove the SKU column and any blank-named columns (e.g. trailing empty
+    // header cells that survived deduplication as empty strings).
+    () => ambraColumns.filter((c) => c && c !== skuColumnName),
     [ambraColumns, skuColumnName],
   );
 
@@ -42,8 +46,9 @@ export default function Home() {
     return cols;
   }, [visibleColumns, changesOnly, result, columnSearch]);
 
-  const handleAifyLoad = (rows: Record<string, string>[], _cols: string[], fileName: string) => {
+  const handleAifyLoad = (rows: Record<string, string>[], cols: string[], fileName: string) => {
     setAifyRows(rows);
+    setAifyColumns(cols);
     setAifyFileName(fileName);
     setAifyRowCount(rows.length);
     setResult(null);
@@ -116,10 +121,17 @@ export default function Home() {
             <SectionLabel step={2} text="Run Comparison" />
             <div className="flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
               <div className="min-w-0 flex-1 text-sm text-gray-600">
-                Comparing <span className="font-semibold text-gray-900">{aifyFileName}</span> against <span className="font-semibold text-gray-900">{ambraFileName}</span>
-                {skuColumnName !== 'sku' && (
-                  <span className="ml-2 text-gray-400">· SKU column: <code className="rounded bg-gray-100 px-1 text-xs text-gray-700">{skuColumnName}</code></span>
-                )}
+                <p>
+                  Comparing <span className="font-semibold text-gray-900">{aifyFileName}</span> against <span className="font-semibold text-gray-900">{ambraFileName}</span>
+                  {skuColumnName !== 'sku' && (
+                    <span className="ml-2 text-gray-400">· SKU column: <code className="rounded bg-gray-100 px-1 text-xs text-gray-700">{skuColumnName}</code></span>
+                  )}
+                </p>
+                <p className="mt-0.5 text-xs text-gray-400">
+                  Aify: <span className="font-semibold text-gray-600">{aifyColumns.length}</span> columns ·{' '}
+                  Ambra: <span className="font-semibold text-gray-600">{ambraColumns.length}</span> columns ·{' '}
+                  Comparing: <span className="font-semibold text-gray-600">{comparisonColumns.length}</span> columns
+                </p>
               </div>
               <button
                 type="button"
