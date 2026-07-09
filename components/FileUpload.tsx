@@ -19,7 +19,24 @@ function parseWorkbook(buffer: ArrayBuffer): {
 } {
   const workbook = XLSX.read(buffer, { type: 'array', raw: false });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const data = XLSX.utils.sheet_to_json<SheetRow>(sheet, { header: 1 });
+
+  // Expand the stored !ref to cover every cell that actually has data.
+  // Some files save a narrow used-range even when data exists in further
+  // columns (e.g. a "collection" column added after the original save).
+  const cellKeys = Object.keys(sheet).filter((k) => !k.startsWith('!'));
+  if (cellKeys.length > 0) {
+    let maxR = 0;
+    let maxC = 0;
+    for (const key of cellKeys) {
+      const addr = XLSX.utils.decode_cell(key);
+      if (addr.r > maxR) maxR = addr.r;
+      if (addr.c > maxC) maxC = addr.c;
+    }
+    sheet['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: maxR, c: maxC } });
+  }
+
+  // defval: null ensures sparse rows include explicit nulls for missing cells
+  const data = XLSX.utils.sheet_to_json<SheetRow>(sheet, { header: 1, defval: null });
 
   if (data.length === 0) return { rows: [], columns: [] };
 

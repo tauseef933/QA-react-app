@@ -27,14 +27,30 @@ export default function Home() {
 
   const bothFilesLoaded = aifyRowCount > 0 && ambraRowCount > 0;
 
-  const skuColumnName = useMemo(() => detectSkuColumn(ambraColumns), [ambraColumns]);
-
-  const comparisonColumns = useMemo(
-    // Remove the SKU column and any blank-named columns (e.g. trailing empty
-    // header cells that survived deduplication as empty strings).
-    () => ambraColumns.filter((c) => c && c !== skuColumnName),
-    [ambraColumns, skuColumnName],
+  const skuColumnName = useMemo(
+    () => detectSkuColumn(ambraColumns.length ? ambraColumns : aifyColumns),
+    [ambraColumns, aifyColumns],
   );
+
+  const comparisonColumns = useMemo(() => {
+    const skuLower = skuColumnName.toLowerCase();
+
+    // Start with Ambra columns (source of truth drives the order)
+    const seen = new Map<string, string>(); // lowerKey → display name
+    for (const c of ambraColumns) {
+      if (c && c.toLowerCase() !== skuLower) seen.set(c.toLowerCase(), c);
+    }
+
+    // Append any Aify-only columns that don't already exist in Ambra.
+    // This ensures columns like "collection" present only in Aify still appear.
+    for (const c of aifyColumns) {
+      if (c && c.toLowerCase() !== skuLower && !seen.has(c.toLowerCase())) {
+        seen.set(c.toLowerCase(), c);
+      }
+    }
+
+    return Array.from(seen.values());
+  }, [ambraColumns, aifyColumns, skuColumnName]);
 
   const displayedColumns = useMemo(() => {
     let cols = visibleColumns;
